@@ -37,8 +37,6 @@ public abstract class AbstractEasyDAO<T extends Serializable> implements EasyDAO
     public List<T> all() {
 
         String query = "from " + clazz.getName();
-        query += (this.getFilterField() != null) ? " order by " + this.getFilterField() : " ";
-
         return getCurrentSession().createQuery(query).list();
     }
 
