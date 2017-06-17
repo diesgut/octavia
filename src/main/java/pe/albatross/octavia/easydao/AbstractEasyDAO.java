@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.hibernate.SessionFactory;
 import com.google.common.base.Preconditions;
+import pe.albatross.octavia.Octavia;
 
 @SuppressWarnings("unchecked")
 public abstract class AbstractEasyDAO<T extends Serializable> implements EasyDAO<T> {
@@ -33,11 +34,19 @@ public abstract class AbstractEasyDAO<T extends Serializable> implements EasyDAO
         return (T) getCurrentSession().get(clazz, id);
     }
 
+    protected T find(Octavia octavia) {
+        return (T) octavia.find(this.getCurrentSession());
+    }
+
     @Override
     public List<T> all() {
 
         String query = "from " + clazz.getName();
         return getCurrentSession().createQuery(query).list();
+    }
+
+    protected List<T> all(Octavia octavia) {
+        return octavia.all(this.getCurrentSession());
     }
 
     @Override
