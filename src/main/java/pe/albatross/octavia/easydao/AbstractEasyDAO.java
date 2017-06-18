@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.hibernate.SessionFactory;
 import com.google.common.base.Preconditions;
 import pe.albatross.octavia.Octavia;
+import pe.albatross.octavia.dynatable.DynatableSql;
 
 @SuppressWarnings("unchecked")
 public abstract class AbstractEasyDAO<T extends Serializable> implements EasyDAO<T> {
@@ -40,13 +41,16 @@ public abstract class AbstractEasyDAO<T extends Serializable> implements EasyDAO
 
     @Override
     public List<T> all() {
-
         String query = "from " + clazz.getName();
         return getCurrentSession().createQuery(query).list();
     }
 
     protected List<T> all(Octavia octavia) {
         return octavia.all(this.getCurrentSession());
+    }
+
+    protected List<T> all(DynatableSql dynatableSql) {
+        return dynatableSql.all(this.getCurrentSession());
     }
 
     @Override

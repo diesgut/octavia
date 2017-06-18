@@ -106,7 +106,7 @@ public class DynatableSql {
                     Octavia subqueryTwo = Octavia.query();
                     subqueryOne.copyFrom(subquerySearch);
                     subqueryTwo.copyFrom(subquerySearch);
-                    
+
                     this.filteredQuery.exists(subqueryOne);
                     this.dataQuery.exists(subqueryTwo);
                     for (List<String> linked : linkeds) {
@@ -162,6 +162,10 @@ public class DynatableSql {
         filteredQuery.join(tables);
         dataQuery.join(tables);
         return this;
+    }
+
+    public DynatableSql left(String... tables) {
+       return this.leftJoin(tables);
     }
 
     public DynatableSql leftJoin(String... tables) {
