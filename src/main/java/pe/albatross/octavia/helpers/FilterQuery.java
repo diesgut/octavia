@@ -28,7 +28,8 @@ public class FilterQuery {
         IN_LIST, IN_LIST_DATES, //                      one list param
         NOT_IN_LIST, NOT_IN_LIST_DATES, //              one list param
         NOT_IN_QUERY, IN_QUERY, EXISTS, NOT_EXISTS, //  subquery
-        BLOCK_OR, BLOCK_AND
+        BLOCK_OR, BLOCK_AND,
+        UPDATE, DELETE                              //  dml
     };
 
     public static String getValueForLike(String value) {
@@ -104,6 +105,17 @@ public class FilterQuery {
         this.value = value;
         this.columnType = typeColumn;
         this.filterType = FilterTypeEnum.GENERIC_OPERATOR;
+    }
+    
+    /**
+     * Filter update
+     */
+    public FilterQuery(String alias, String column,  Object value) {
+        this.alias = alias;
+        this.column = column;
+        this.comparision = ComparisonOperatorEnum.EQUAL;
+        this.value = value;
+        this.filterType = FilterTypeEnum.UPDATE;
     }
 
     /**

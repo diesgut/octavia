@@ -72,6 +72,10 @@ public abstract class AbstractEasyDAO<T extends Serializable> implements EasyDAO
         getCurrentSession().merge(entity);
     }
 
+    protected void update(Octavia octavia) {
+        octavia.execute(this.getCurrentSession());
+    }
+
     @Override
     public void delete(final T entity) {
         Preconditions.checkNotNull(entity);

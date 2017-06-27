@@ -21,10 +21,11 @@ import org.hibernate.Query;
 import pe.albatross.octavia.exceptions.OctaviaException;
 import static pe.albatross.octavia.helpers.FilterQuery.FilterTypeEnum.*;
 import pe.albatross.octavia.helpers.ItemOrderBy.OrderTypeEnum;
+import pe.albatross.octavia.helpers.ObjectHelper;
 import pe.albatross.octavia.helpers.TableQuery.TypeJoinEnum;
 
 public class Octavia {
-    
+
     private String selects;
     private String groupBys;
     private String existsStatus;
@@ -40,28 +41,31 @@ public class Octavia {
     private Octavia activeSubquery;
     private FilterQuery blockFilter;
     private List<FilterQuery> childrenFilters;
-    
+
     private Boolean distinct;
     private Boolean count;
+    private Boolean isUpdate;
     private Boolean isClauseWhereOpen;
     private Boolean isSubqueryIncluded;
     private Boolean isClauseExistsOpen;
     private Boolean isClauseInQueryOpen;
-    
+
     private List<FilterQuery> filters;
+    private List<FilterQuery> sets;
     private List<ItemOrderBy> itemsOrderBy;
     private Map<String, TableQuery> mapQueryTables;
-    
+
     private final String separator = "::::::::";
     private final String enter = " \n";
     private final String enterInto = " \n\t";
-    
+
     public static List<Class> TYPICAL_CLASSES = Arrays.asList(
             String.class, Integer.class, Long.class, BigDecimal.class, Float.class, Double.class, Timestamp.class, Date.class
     );
-    
+
     public Octavia() {
         filters = new ArrayList();
+        sets = new ArrayList();
         itemsOrderBy = new ArrayList();
         mapQueryTables = new LinkedHashMap();
         prefix = "";
@@ -69,29 +73,79 @@ public class Octavia {
         selectsCount = 0;
         blockFilter = null;
         childrenFilters = null;
-        
+        childrenFilters = null;
+
         isClauseWhereOpen = false;
         isSubqueryIncluded = false;
         isClauseExistsOpen = false;
         isClauseInQueryOpen = false;
+        isUpdate = false;
     }
-    
+
     public static Octavia query() {
         return new Octavia();
     }
-    
+
     public static Octavia query(Class clazz) {
         Octavia octavia = new Octavia();
         octavia.from(clazz);
         return octavia;
     }
-    
+
     public static Octavia query(Class clazz, String alias) {
         Octavia octavia = new Octavia();
         octavia.from(clazz, alias);
         return octavia;
     }
-    
+
+    public static Octavia update() {
+        Octavia octavia = new Octavia();
+        octavia.isUpdate = true;
+        return octavia;
+    }
+
+    public static Octavia update(Class clazz) {
+        Octavia octavia = new Octavia();
+        octavia.isUpdate = true;
+        octavia.from(clazz);
+        return octavia;
+    }
+
+    public static Octavia update(Class clazz, String alias) {
+        Octavia octavia = new Octavia();
+        octavia.isUpdate = true;
+        octavia.from(clazz, alias);
+        return octavia;
+    }
+
+    public Octavia set(Object val, String... columns) {
+        Preconditions.isNotNull(mainTable, "Aun no existe la tabla principal");
+        Preconditions.isTrue(columns.length > 0, "No indicó ningún elemento en el SET");
+        for (int i = 0; i < columns.length; i++) {
+            String column = columns[i];
+            Preconditions.isNotBlank(column, "Debe indicar correctament el elemento " + (i + 1) + " del SET");
+            Preconditions.isFalse(isFormula(column), "El elemento " + (i + 1) + " del SET es una formula");
+        }
+
+        for (String field : columns) {
+            field = field.trim();
+            getAttribute(field);
+            String[] parts = field.split("\\.");
+            String alias = parts.length == 2 ? parts[0] : mainTable.getAlias();
+            String attribute = parts.length == 2 ? parts[1] : parts[0];
+
+            FilterQuery fq = new FilterQuery(alias, attribute, ObjectHelper.getParentTree(val, field));
+            fq.setIndex(parametersCount++);
+            
+            sets.add(fq);
+            
+            
+        }
+        
+        this.filter("id", val);
+        return this;
+    }
+
     public void increaseParams(Integer beginCount, List<FilterQuery> filters) {
         for (FilterQuery filter : filters) {
             switch (filter.getFilterType()) {
@@ -130,47 +184,47 @@ public class Octavia {
         }
         this.parametersCount = this.parametersCount + beginCount;
     }
-    
+
     public Boolean isSubqueryIncluded() {
         return isSubqueryIncluded;
     }
-    
+
     public void setIsSubqueryIncluded(Boolean isSubqueryIncluded) {
         this.isSubqueryIncluded = isSubqueryIncluded;
     }
-    
+
     public Integer getParametersCount() {
         return parametersCount;
     }
-    
+
     public List<FilterQuery> getFilters() {
         return filters;
     }
-    
+
     public String getSelects() {
         return selects;
     }
-    
+
     public void setIsClauseExistsOpen(Boolean isClauseExistsOpen) {
         this.isClauseExistsOpen = isClauseExistsOpen;
     }
-    
+
     public String getPrefix() {
         return prefix;
     }
-    
+
     public void setPrefix(String prefix) {
         this.prefix = prefix;
     }
-    
+
     public Integer getFirstResult() {
         return firstResult;
     }
-    
+
     public Integer getMaxResults() {
         return maxResults;
     }
-    
+
     public Octavia from(Class clazz) {
         String alias = getNewAlias();
         Preconditions.isNull(mainTable, "Ya existe asignada la tabla principal");
@@ -178,14 +232,14 @@ public class Octavia {
         mapQueryTables.put(alias, mainTable);
         return this;
     }
-    
+
     public Octavia from(Class clazz, String alias) {
         Preconditions.isNull(mainTable, "Ya existe asignada la tabla principal");
         mainTable = new TableQuery(clazz, alias);
         mapQueryTables.put(alias, mainTable);
         return this;
     }
-    
+
     private String getNewAlias() {
         if (aliasCount == null) {
             aliasCount = 0;
@@ -193,17 +247,17 @@ public class Octavia {
         aliasCount++;
         return "_aliasTb_" + String.format("%06d", aliasCount);
     }
-    
+
     private void addParent(TableQuery parent) {
         Preconditions.isNotNull(mainTable, "Aun no existe la tabla principal");
         Class clazz;
         Class classMain = mainTable.getClazz();
         TableQuery previous = mapQueryTables.get(parent.getAlias());
         Preconditions.isTrue(previous == null, "El alias de [[" + parent.getName() + "]] ya se encuentra utilizado");
-        
+
         String[] parts = parent.getName().split("\\.");
         Preconditions.isFalse(parts.length > 2, "El join [[" + parent.getName() + "]] tiene muchos alias padres");
-        
+
         TableQuery child;
         if (parts.length == 2) {
             child = mapQueryTables.get(parts[0]);
@@ -216,13 +270,13 @@ public class Octavia {
             clazz = getField(classMain, parts[0], err).getType();
             parent.setName(mainTable.getAlias() + "." + parent.getName());
         }
-        
+
         parent.setClazz(clazz);
         parent.setChild(child);
         mapQueryTables.put(parent.getAlias(), parent);
         child.getParents().add(parent);
     }
-    
+
     private Octavia join(TypeJoinEnum typeJoin, String... tables) {
         for (String table : tables) {
             table = table.replaceAll("^ +| +$|( )+", "$1");
@@ -236,23 +290,23 @@ public class Octavia {
         }
         return this;
     }
-    
+
     public Octavia join(String... tables) {
         return join(TypeJoinEnum.INNER_JOIN, tables);
     }
-    
+
     public Octavia left(String... tables) {
         return this.leftJoin(tables);
     }
-    
+
     public Octavia leftJoin(String... tables) {
         return join(TypeJoinEnum.LEFT_JOIN, tables);
     }
-    
+
     public Octavia __() {
         return this;
     }
-    
+
     public Octavia filter(String column, Object value) {
         if (value instanceof Enum) {
             return filter(column, "=", ((Enum) value).name());
@@ -260,31 +314,31 @@ public class Octavia {
             return filter(column, "=", value);
         }
     }
-    
+
     public Octavia filter(String column, String comparision, Object value) {
         Preconditions.isNotNull(mainTable, "Aun no existe la tabla principal");
         Preconditions.isNotNull(value, "El valor de comparación es null");
         Preconditions.isNotBlank(column, "La columna del filter es incorrecta");
         Preconditions.isNotBlank(comparision, "El signo de comparación del filter es incorrecto");
         column = column.trim();
-        
+
         String[] parts = column.split("\\.");
         Field fieldAttr = getAttribute(column);
         String alias = parts.length == 2 ? parts[0] : mainTable.getAlias();
         String attribute = parts.length == 2 ? parts[1] : parts[0];
-        
+
         FilterQuery fq = new FilterQuery(alias, attribute, findComparison(comparision), value, fieldAttr.getType());
         fq.setIndex(parametersCount++);
-        
+
         if (blockFilter != null) {
             this.childrenFilters.add(fq);
         } else {
             filters.add(fq);
         }
-        
+
         return this;
     }
-    
+
     public Octavia in(String column, Object[] items) {
         List list = new ArrayList();
         for (Object item : items) {
@@ -296,7 +350,7 @@ public class Octavia {
         }
         return setFilterIn(column, list, ComparisonOperatorEnum.IN, IN_LIST);
     }
-    
+
     public Octavia in(String column, List values) {
         List valuex = new ArrayList();
         for (Object item : values) {
@@ -308,21 +362,21 @@ public class Octavia {
         }
         return setFilterIn(column, valuex, ComparisonOperatorEnum.IN, IN_LIST);
     }
-    
+
     public Octavia notIn(String column, List values) {
         return setFilterIn(column, values, ComparisonOperatorEnum.NOT_IN, NOT_IN_LIST);
     }
-    
+
     private Octavia setFilterIn(String column, List values, ComparisonOperatorEnum comparison, FilterQuery.FilterTypeEnum typeFilter) {
         Preconditions.isNotNull(mainTable, "Aun no existe la tabla principal");
         Preconditions.isNotBlank(column, "La columna del filter es incorrecta");
         column = column.trim();
-        
+
         String[] parts = column.split("\\.");
         Field fieldAttr = getAttribute(column);
         String alias = parts.length == 2 ? parts[0] : mainTable.getAlias();
         String attribute = parts.length == 2 ? parts[1] : parts[0];
-        
+
         if (values.isEmpty()) {
             String value2 = (typeFilter == IN_LIST) ? "2" : "1";
             FilterQuery fq = new FilterQuery("1", ComparisonOperatorEnum.EQUAL, value2, true);
@@ -334,62 +388,62 @@ public class Octavia {
             }
             return this;
         }
-        
+
         Class clazz = values.get(0).getClass();
         if (clazz == String.class && fieldAttr.getType() == Date.class) {
             FilterQuery.FilterTypeEnum typeDate
                     = (typeFilter == IN_LIST)
                             ? IN_LIST_DATES
                             : NOT_IN_LIST_DATES;
-            
+
             FilterQuery fq = new FilterQuery(alias, attribute, values, clazz, comparison, typeDate);
             fq.setIndex(parametersCount++);
-            
+
             if (blockFilter != null) {
                 this.childrenFilters.add(fq);
             } else {
                 filters.add(fq);
             }
-            
+
             return this;
         }
-        
+
         if (TYPICAL_CLASSES.contains(clazz)) {
-            
+
             FilterQuery fq = new FilterQuery(alias, attribute, values, clazz, comparison, typeFilter);
             fq.setIndex(parametersCount++);
-            
+
             if (blockFilter != null) {
                 this.childrenFilters.add(fq);
             } else {
                 filters.add(fq);
             }
-            
+
             return this;
         }
-        
+
         List<Long> ids = new ArrayList();
         for (Object item : values) {
             Long id = getIdObject(item);
             ids.add(id);
         }
-        
+
         FilterQuery fq = new FilterQuery(alias, attribute, ids, clazz, comparison, typeFilter);
         fq.setIndex(parametersCount++);
-        
+
         if (blockFilter != null) {
             this.childrenFilters.add(fq);
         } else {
             filters.add(fq);
         }
-        
+
         return this;
     }
-    
+
     public Octavia filterSpecial(String columnLeft, String columnRigth) {
         return filterSpecial(columnLeft, "=", columnRigth);
     }
-    
+
     public Octavia filterSpecial(String columnLeft, String comparision, String columnRigth) {
         Preconditions.isNotNull(mainTable, "Aun no existe la tabla principal");
         Preconditions.isNotBlank(columnLeft, "La columna 1 del filter es incorrecta");
@@ -399,14 +453,14 @@ public class Octavia {
         Preconditions.isNotBlank(comparision, "El signo de comparación del filter es incorrecto");
         columnLeft = columnLeft.trim();
         columnRigth = columnRigth.trim();
-        
+
         if (!isFormula(columnLeft)) {
             getAttribute(columnLeft);
         }
         if (!isFormula(columnRigth)) {
             getAttribute(columnRigth);
         }
-        
+
         FilterQuery fq = new FilterQuery(columnLeft.trim(), findComparison(comparision), columnRigth.trim(), true);
         fq.setIndex(parametersCount++);
         if (blockFilter != null) {
@@ -414,76 +468,76 @@ public class Octavia {
         } else {
             filters.add(fq);
         }
-        
+
         return this;
     }
-    
+
     public Octavia like(String column, String value) {
         return setlike(column, value, ComparisonOperatorEnum.LIKE);
     }
-    
+
     public Octavia notLike(String column, String value) {
         return setlike(column, value, ComparisonOperatorEnum.NOT_LIKE);
     }
-    
+
     private Octavia setlike(String column, String value, ComparisonOperatorEnum comparison) {
         Preconditions.isNotNull(mainTable, "Aun no existe la tabla principal");
         Preconditions.isNotNull(value, "El valor de comparación es null", false);
         Preconditions.isNotBlank(column, "La columna del filter es incorrecta");
         column = column.trim();
-        
+
         getAttribute(column);
         String[] parts = column.split("\\.");
         Field fieldAttr = getAttribute(column);
         String alias = parts.length == 2 ? parts[0] : mainTable.getAlias();
         String attribute = parts.length == 2 ? parts[1] : parts[0];
-        
+
         FilterQuery fq = new FilterQuery(alias, attribute, value, fieldAttr.getType(), comparison, FilterQuery.FilterTypeEnum.LIKE);
         fq.setIndex(parametersCount++);
-        
+
         if (blockFilter != null) {
             this.childrenFilters.add(fq);
         } else {
             filters.add(fq);
         }
-        
+
         return this;
     }
-    
+
     public Octavia isNull(String column) {
         return setIsNull(column, IS_NULL);
     }
-    
+
     public Octavia isNotNull(String column) {
         return setIsNull(column, IS_NOT_NULL);
     }
-    
+
     private Octavia setIsNull(String column, FilterQuery.FilterTypeEnum type) {
         Preconditions.isNotNull(mainTable, "Aun no existe la tabla principal");
         Preconditions.isNotBlank(column, "La columna del IS_NOT_NULL es incorrecta");
         column = column.trim();
-        
+
         String[] parts = column.split("\\.");
         getAttribute(column);
         String alias = parts.length == 2 ? parts[0] : mainTable.getAlias();
         String attribute = parts.length == 2 ? parts[1] : parts[0];
-        
+
         FilterQuery fq = new FilterQuery(alias, attribute, type);
         fq.setIndex(parametersCount++);
-        
+
         if (blockFilter != null) {
             this.childrenFilters.add(fq);
         } else {
             filters.add(fq);
         }
-        
+
         return this;
     }
-    
+
     public Octavia complexFilter(String complex, Object value) {
         return complexFilter(complex, "=", value);
     }
-    
+
     public Octavia complexFilter(String complex, String comparision, Object value) {
         Preconditions.isNotNull(mainTable, "Aun no existe la tabla principal");
         Preconditions.isNotNull(value, "El valor de comparación es null");
@@ -491,175 +545,175 @@ public class Octavia {
         Preconditions.isTrue(isCorrectFormula(complex), "La columna compleja es incorrecta");
         Preconditions.isNotBlank(comparision, "El signo de comparación del filter es incorrecto");
         complex = complex.trim();
-        
+
         if (!isFormula(complex)) {
             getAttribute(complex);
         }
-        
+
         FilterQuery fq = new FilterQuery(complex, findComparison(comparision), value);
         fq.setIndex(parametersCount++);
-        
+
         if (blockFilter != null) {
             this.childrenFilters.add(fq);
         } else {
             filters.add(fq);
         }
-        
+
         return this;
     }
-    
+
     public Octavia likeComplex(String complex, String value) {
         Preconditions.isNotNull(mainTable, "Aun no existe la tabla principal");
         Preconditions.isNotNull(value, "El valor de comparación es null", false);
         Preconditions.isNotBlank(complex, "La columna del filter es incorrecta");
         Preconditions.isTrue(isCorrectFormula(complex), "La columna compleja es incorrecta");
         complex = complex.trim();
-        
+
         if (!isFormula(complex)) {
             getAttribute(complex);
         }
-        
+
         FilterQuery fq = new FilterQuery(null, complex, value, null, findComparison("like"), FilterQuery.FilterTypeEnum.COMPLEX_LIKE);
         fq.setIndex(parametersCount++);
-        
+
         if (blockFilter != null) {
             this.childrenFilters.add(fq);
         } else {
             filters.add(fq);
         }
-        
+
         return this;
     }
-    
+
     public Octavia betweenIn(String column, Object valueMin, Object valueMax) {
         return setBetween(column, valueMin, valueMax, BETWEEN_IN);
     }
-    
+
     public Octavia betweenNotIn(String column, Object valueMin, Object valueMax) {
         return setBetween(column, valueMin, valueMax, BETWEEN_NOT_IN);
     }
-    
+
     private Octavia setBetween(String column, Object valueMin, Object valueMax, FilterQuery.FilterTypeEnum typeBetween) {
         Preconditions.isNotNull(mainTable, "Aun no existe la tabla principal");
         Preconditions.isNotNull(valueMin, "El valor mínimo de la clausula between es null");
         Preconditions.isNotNull(valueMax, "El valor máximo de la clausula between es null");
         Preconditions.isNotBlank(column, "La columna del beteewn es incorrecta");
         column = column.trim();
-        
+
         String[] parts = column.split("\\.");
         Field fieldAttr = getAttribute(column);
         String alias = parts.length == 2 ? parts[0] : mainTable.getAlias();
         String attribute = parts.length == 2 ? parts[1] : parts[0];
-        
+
         FilterQuery fq = new FilterQuery(alias, attribute, valueMin, valueMax, typeBetween, fieldAttr.getType());
         fq.setIndex(parametersCount++);
         fq.setIndexTwo(parametersCount++);
-        
+
         if (blockFilter != null) {
             this.childrenFilters.add(fq);
         } else {
             filters.add(fq);
         }
-        
+
         return this;
     }
-    
+
     public Octavia exists(Octavia subQuery) {
         return setExists(subQuery, EXISTS);
     }
-    
+
     public Octavia notExists(Octavia subQuery) {
         return setExists(subQuery, NOT_EXISTS);
     }
-    
+
     private Octavia setExists(Octavia subQuery, FilterQuery.FilterTypeEnum typeExists) {
         Preconditions.isNotNull(mainTable, "Aun no existe la tabla principal");
         Preconditions.isTrue(existsStatus == null || existsStatus.equals("CONNECTED"), "Existe una clausula EXISTS sin conexion al query superior");
         Preconditions.isTrue(!subQuery.isSubqueryIncluded(), "El subquery de la clausula EXISTS ya fue incluida");
-        
+
         subQuery.setPrefix(this.prefix + (blockFilter != null ? "\t" : "") + "\t");
         FilterQuery fq = new FilterQuery(subQuery, typeExists);
         fq.setIndex(parametersCount++);
-        
+
         subQuery.setIsClauseExistsOpen(true);
         existsStatus = "OPEN";
         isClauseInQueryOpen = false;
-        
+
         if (blockFilter != null) {
             this.childrenFilters.add(fq);
         } else {
             filters.add(fq);
         }
-        
+
         activeSubquery = subQuery;
         subQuery.increaseParams(this.parametersCount - 1, subQuery.filters);
         subQuery.setIsSubqueryIncluded(true);
         this.parametersCount = subQuery.getParametersCount();
-        
+
         return this;
     }
-    
+
     public Octavia linkedBy(String columnTop, String columnBottom) {
         return linkedBy(columnTop, "=", columnBottom);
     }
-    
+
     public Octavia linkedBy(String columnTop, String comparision, String columnBottom) {
         Preconditions.isNotNull(existsStatus, "No existe una clausula EXISTS abierta");
         Preconditions.isNotBlank(columnTop, "La columna top del EXISTS es incorrecta");
         Preconditions.isNotBlank(columnBottom, "La columna bottom del EXISTS es incorrecta");
         columnTop = columnTop.trim();
         columnBottom = columnBottom.trim();
-        
+
         getAttribute(columnTop);
         activeSubquery.getAttribute(columnBottom);
-        
+
         FilterQuery fq = new FilterQuery(columnTop, findComparison(comparision), columnBottom, true);
         fq.setIndex(activeSubquery.parametersCount++);
-        
+
         activeSubquery.getFilters().add(fq);
         existsStatus = "CONNECTED";
         return this;
     }
-    
+
     public Octavia in(String column, Octavia subQuery) {
         return setInQuery(column, subQuery, ComparisonOperatorEnum.IN, IN_QUERY);
     }
-    
+
     public Octavia notIn(String column, Octavia subQuery) {
         return setInQuery(column, subQuery, ComparisonOperatorEnum.NOT_IN, NOT_IN_QUERY);
     }
-    
+
     private Octavia setInQuery(String column, Octavia subQuery, ComparisonOperatorEnum comparison, FilterQuery.FilterTypeEnum typeInQuery) {
         Preconditions.isNotNull(mainTable, "Aun no existe la tabla principal");
         Preconditions.isNotBlank(column, "La columna del filter es incorrecta");
         Preconditions.isTrue(!subQuery.isSubqueryIncluded(), "El subquery de la clausula IN QUERY ya fue incluida");
         Preconditions.isNotNull(subQuery.getSelects(), "Debe incluir la clausula SELECT en el subquery IN QUERY");
         column = column.trim();
-        
+
         String[] parts = column.split("\\.");
         getAttribute(column);
         String alias = parts.length == 2 ? parts[0] : mainTable.getAlias();
         String attribute = parts.length == 2 ? parts[1] : parts[0];
-        
+
         subQuery.setPrefix(this.prefix + (blockFilter != null ? "\t" : "") + "\t");
         FilterQuery fq = new FilterQuery(alias, attribute, subQuery, comparison, typeInQuery);
         fq.setIndex(parametersCount++);
         isClauseInQueryOpen = true;
-        
+
         if (blockFilter != null) {
             this.childrenFilters.add(fq);
         } else {
             filters.add(fq);
         }
-        
+
         activeSubquery = subQuery;
         subQuery.increaseParams(this.parametersCount - 1, subQuery.filters);
         subQuery.setIsSubqueryIncluded(true);
         this.parametersCount = subQuery.getParametersCount();
-        
+
         return this;
     }
-    
+
     public Octavia beginBlock() {
         FilterQuery.FilterTypeEnum typeBlock;
         if (this.blockFilter == null) {
@@ -669,10 +723,10 @@ public class Octavia {
         } else {
             typeBlock = BLOCK_OR;
         }
-        
+
         FilterQuery fq = new FilterQuery(blockFilter, typeBlock);
         fq.setIndex(parametersCount++);
-        
+
         if (blockFilter == null) {
             this.filters.add(fq);
         } else {
@@ -680,21 +734,21 @@ public class Octavia {
         }
         this.blockFilter = fq;
         this.childrenFilters = fq.getChildrenFilters();
-        
+
         return this;
     }
-    
+
     public Octavia endBlock() {
         Preconditions.isTrue(blockFilter != null, "No existe ningún bloque sql para cerrar");
         Preconditions.isFalse(childrenFilters.isEmpty(), "No se han agregado elementos al bloque");
-        
+
         FilterQuery fq = this.blockFilter.getParentFilter();
         this.blockFilter = fq;
         this.childrenFilters = (fq == null) ? null : fq.getChildrenFilters();
-        
+
         return this;
     }
-    
+
     private Octavia setSelect(boolean distinct, boolean count, String... columns) {
         Preconditions.isNull(selects, "Ya indicó la clausula SELECT");
         Preconditions.isTrue(columns.length > 0, "No indicó ningún elemento en el SELECT");
@@ -703,7 +757,7 @@ public class Octavia {
             Preconditions.isNotBlank(column, "Debe indicar correctament el elemento " + (i + 1) + " del Select");
             Preconditions.isTrue(isCorrectFormula(column), "El elemento " + (i + 1) + " del Select es una formula incorrecta");
         }
-        
+
         this.selects = "";
         for (String field : columns) {
             field = field.trim();
@@ -715,19 +769,19 @@ public class Octavia {
         this.selectsCount = columns.length;
         return this;
     }
-    
+
     public Octavia selectDistinct(String... fields) {
         return setSelect(true, false, fields);
     }
-    
+
     public Octavia selectCountDistinct(String... fields) {
         return setSelect(true, true, fields);
     }
-    
+
     public Octavia select(String... fields) {
         return setSelect(false, false, fields);
     }
-    
+
     public Octavia selectCount() {
         Preconditions.isNull(selects, "Ya indicó la clausula SELECT");
         distinct = false;
@@ -735,18 +789,18 @@ public class Octavia {
         selects = "*";
         return this;
     }
-    
+
     public Octavia into(Class clazz) {
         Preconditions.isNotNull(selects, "Debe indicar la clausula SELECT");
         Preconditions.isNull(clazzInto, "Ya indicó la clausula INTO para el SELECT");
         clazzInto = clazz;
         return this;
     }
-    
+
     public Octavia orderBy(String... items) {
         Preconditions.isNotNull(mainTable, "Aun no existe la tabla principal");
         Preconditions.isTrue(items.length > 0, "No indicó ningún elemento en el ORDER BY");
-        
+
         for (int i = 0; i < items.length; i++) {
             String item = items[i];
             Preconditions.isNotBlank(item, "Debe indicar correctament el elemento " + (i + 1) + " del ORDER BY");
@@ -759,7 +813,7 @@ public class Octavia {
             } else if (item.toUpperCase().endsWith(" ASC")) {
                 column = item.substring(0, item.length() - 4).trim();
             }
-            
+
             Preconditions.isTrue(isCorrectFormula(column), "El elemento " + (i + 1) + " del ORDER BY es una formula incorrecta");
             if (isNumeric(column) && selectsCount > 0) {
                 int position = Integer.valueOf(column);
@@ -770,20 +824,20 @@ public class Octavia {
             if (!isNumeric(column) && !isFormula(column)) {
                 getAttribute(column);
             }
-            
+
             itemsOrderBy.add(new ItemOrderBy(column, type));
-            
+
         }
-        
+
         return this;
     }
-    
+
     public Octavia groupBy(String... items) {
         Preconditions.isNotNull(mainTable, "Aun no existe la tabla principal");
         Preconditions.isTrue(items.length > 0, "No indicó ningún elemento en el GROUP BY");
-        
+
         groupBys = groupBys == null ? "" : groupBys;
-        
+
         for (int i = 0; i < items.length; i++) {
             String item = items[i];
             Preconditions.isNotBlank(item, "Debe indicar correctament el elemento " + (i + 1) + " del GROUP BY");
@@ -792,24 +846,31 @@ public class Octavia {
             if (!isFormula(item)) {
                 getAttribute(item);
             }
-            
+
             groupBys += groupBys.equals("") ? "" : ", ";
             groupBys += item;
         }
-        
+
         return this;
     }
-    
+
     public Octavia limit(Integer firstResult, Integer maxResults) {
         this.firstResult = firstResult;
         this.maxResults = maxResults;
         return this;
     }
-    
+
     public Octavia limit(Integer maxResults) {
         return limit(0, maxResults);
     }
-    
+
+    public Integer execute(Session session) {
+        query = session.createQuery(toString());
+        setValuesSet(sets);
+        setValues(filters);
+        return query.executeUpdate();
+    }
+
     public Object find(Session session) {
         query = session.createQuery(toString());
         setValues(filters);
@@ -821,7 +882,7 @@ public class Octavia {
         }
         return query.uniqueResult();
     }
-    
+
     public List all(Session session) {
         query = session.createQuery(toString());
         setValues(filters);
@@ -833,7 +894,13 @@ public class Octavia {
         }
         return query.list();
     }
-    
+
+    private void setValuesSet(List<FilterQuery> sets) {
+        for (FilterQuery filter : sets) {
+            setValue(filter);
+        }
+    }
+
     private void setValues(List<FilterQuery> filters) {
         for (FilterQuery filter : filters) {
             switch (filter.getFilterType()) {
@@ -870,17 +937,17 @@ public class Octavia {
             }
         }
     }
-    
+
     private void setListValues(FilterQuery filter) {
         List values = (List) filter.getValue();
         String param = "PARAM_" + String.format("%06d", filter.getIndex());
         query.setParameterList(param, values);
     }
-    
+
     private void setValue(FilterQuery filter) {
         Object value = filter.getValue();
         String param = "PARAM_" + String.format("%06d", filter.getIndex());
-        
+
         if (value instanceof String) {
             query.setString(param, (String) value);
         } else if (value instanceof Integer) {
@@ -901,13 +968,13 @@ public class Octavia {
             query.setLong(param, getIdObject(value));
         }
     }
-    
+
     private void setTwoValues(FilterQuery filter) {
         setValue(filter);
-        
+
         Object valueTwo = filter.getValueTwo();
         String paramTwo = "PARAM_" + String.format("%06d", filter.getIndexTwo());
-        
+
         if (valueTwo instanceof String) {
             query.setString(paramTwo, (String) valueTwo);
         } else if (valueTwo instanceof Integer) {
@@ -927,9 +994,9 @@ public class Octavia {
         } else {
             query.setLong(paramTwo, getIdObject(valueTwo));
         }
-        
+
     }
-    
+
     private Long getIdObject(Object object) {
         Method getIdMethod = null;
         for (Method method : object.getClass().getMethods()) {
@@ -939,21 +1006,21 @@ public class Octavia {
             }
         }
         Preconditions.isNotNull(getIdMethod, "No se encontro el atributo ID para el objecto [[" + object + "]]");
-        
+
         Long id = null;
         try {
             id = (Long) getIdMethod.invoke(object);
         } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
         }
-        
+
         Preconditions.isNotNull(id, "El valor del atributo ID es null");
         return id;
     }
-    
+
     public Field getAttribute(String atribute) {
         String[] parts = atribute.split("\\.");
         Preconditions.isFalse(parts.length > 2, "La columna [[" + atribute + "]] tiene muchos alias padres");
-        
+
         Field field;
         if (parts.length == 2) {
             TableQuery parent = mapQueryTables.get(parts[0]);
@@ -971,7 +1038,7 @@ public class Octavia {
         }
         return field;
     }
-    
+
     private Field getField(Class clazz, String field, String error) {
         Field f;
         try {
@@ -981,33 +1048,64 @@ public class Octavia {
         }
         return f;
     }
-    
+
     @Override
     public String toString() {
         Preconditions.isTrue(this.blockFilter == null, "No cerró todos los bloques");
         verifyExists();
-        
+
         StringBuilder sql = new StringBuilder();
-        createSelect(sql);
+        if (isUpdate) {
+            createUpdate(sql);
+        } else {
+            createSelect(sql);
+        }
         createFrom(sql);
+        if (isUpdate) {
+            createSetOfUpdate(sql);
+        }
         createWhere(prefix, sql, filters, BLOCK_AND);
-        createGroupBy(sql);
-        createOrderBy(sql);
-        
+        if (!isUpdate) {
+            createGroupBy(sql);
+            createOrderBy(sql);
+        }
+
         if (prefix.equals("")) {
             System.out.println(sql.toString());
         }
-        
+
         return sql.toString();
     }
-    
+
     private void verifyExists() {
         if (existsStatus == null) {
             return;
         }
         Preconditions.isFalse(existsStatus.equals("OPEN"), "Existe una clausula EXISTS sin conexion al query superior");
     }
-    
+
+    private void createUpdate(StringBuilder sql) {
+        sql.append(" update ");
+    }
+
+    private void createSetOfUpdate(StringBuilder sql) {
+        int cols = 0;
+        sql.append(" set ");
+
+        for (FilterQuery filter : sets) {
+            String param = ":PARAM_" + String.format("%06d", filter.getIndex());
+
+            if (cols > 0) {
+                sql.append(", ").append(enter);
+            }
+            sql.append(filter.getAlias()).append(".").append(filter.getColumn());
+            sql.append(" = ").append(param);
+
+            ++cols;
+        }
+        sql.append(enter);
+    }
+
     private void createSelect(StringBuilder sql) {
         if (isClauseExistsOpen) {
             sql.append(prefix).append(" select ");
@@ -1023,7 +1121,7 @@ public class Octavia {
         if (selects == null && isClauseExistsOpen) {
             return;
         }
-        
+
         TableQuery table = mapQueryTables.get(selects);
         if (table == null && mainTable.getAlias().equals(selects)) {
             table = mainTable;
@@ -1034,7 +1132,7 @@ public class Octavia {
                 setFetch(parent);
             });
         }
-        
+
         sql.append(prefix).append(" select ");
         String[] selectItems = selects.split(separator);
         for (String item : selectItems) {
@@ -1054,12 +1152,12 @@ public class Octavia {
             sql.append(") ");
         }
         sql.append(enter);
-        
+
         if (clazzInto != null) {
             sql.append(prefix).append(" )").append(enter);
         }
     }
-    
+
     private void setFetch(TableQuery table) {
         table.setFetch(true);
         List<TableQuery> parents = table.getParents();
@@ -1067,17 +1165,17 @@ public class Octavia {
             setFetch(parent);
         });
     }
-    
+
     private void createWhere(String prefix, StringBuilder sql, List<FilterQuery> filters, FilterQuery.FilterTypeEnum typeCondition) {
-        
+
         int loop = 0;
         String condition = typeCondition == BLOCK_AND ? " and " : " or ";
-        
+
         for (FilterQuery filter : filters) {
-            
+
             sql.append(prefix).append(!isClauseWhereOpen ? " where " : (loop == 0 ? "" : condition));
             isClauseWhereOpen = true;
-            
+
             if (filter.getFilterType() == COMPLEX || filter.getFilterType() == COMPLEX_LIKE) {
                 sql.append(filter.getColumn());
             } else if (filter.getFilterType() == EXISTS) {
@@ -1085,7 +1183,7 @@ public class Octavia {
             } else if (filter.getFilterType() == NOT_EXISTS) {
                 sql.append("not exists (").append(enter);
             } else if (filter.getFilterType() == OTHER_CONDITION) {
-                
+
             } else if (filter.getFilterType() == IN_LIST_DATES) {
                 sql.append("date_format(");
                 sql.append(filter.getAlias()).append(".").append(filter.getColumn());
@@ -1107,7 +1205,7 @@ public class Octavia {
             } else {
                 sql.append(filter.getAlias()).append(".").append(filter.getColumn());
             }
-            
+
             switch (filter.getFilterType()) {
                 case GENERIC_OPERATOR:
                 case COMPLEX:
@@ -1132,7 +1230,7 @@ public class Octavia {
                     break;
                 case NOT_EXISTS:
                 case EXISTS:
-                    
+
                     sql.append(filter.getSubQuery().toString());
                     break;
                 case NOT_IN_QUERY:
@@ -1157,20 +1255,20 @@ public class Octavia {
                 default:
                     break;
             }
-            
+
             if (Arrays.asList(EXISTS, IN_QUERY, NOT_EXISTS, NOT_IN_QUERY, BLOCK_AND, BLOCK_OR).contains(filter.getFilterType())) {
                 sql.append(prefix).append(")");
             }
-            
+
             sql.append(enter);
-            
+
             loop++;
         }
     }
-    
+
     private void createFrom(StringBuilder sql) {
         sql.append(prefix).append(" from ").append(mainTable.getClazz().getSimpleName()).append(" as ").append(mainTable.getAlias()).append(enter);
-        
+
         List<TableQuery> tables = new ArrayList(mapQueryTables.values());
         for (TableQuery table : tables) {
             if (table.getType() == TypeJoinEnum.INNER_JOIN) {
@@ -1183,12 +1281,12 @@ public class Octavia {
             }
         }
     }
-    
+
     private void createOrderBy(StringBuilder sql) {
         if (itemsOrderBy.isEmpty()) {
             return;
         }
-        
+
         int loop = 0;
         sql.append(prefix).append(" order by ");
         for (ItemOrderBy item : itemsOrderBy) {
@@ -1198,23 +1296,23 @@ public class Octavia {
         }
         sql.append(enter);
     }
-    
+
     private void createGroupBy(StringBuilder sql) {
         if (groupBys == null) {
             return;
         }
-        
+
         sql.append(prefix).append(" group by ").append(groupBys);
         sql.append(enter);
     }
-    
+
     private ComparisonOperatorEnum findComparison(String comparison) {
         Preconditions.isNotNull(comparison, "El operador comparativo del filter no puede ser null");
         Preconditions.isNotBlank(comparison, "El operador comparativo del filter debe contener un valor");
         comparison = comparison.trim().toLowerCase().replaceAll(" +", " ");
         return ComparisonOperatorEnum.get(comparison);
     }
-    
+
     private boolean isFormula(String formula) {
         formula = formula.trim();
         List<String> signs = Arrays.asList("(", "+", "-", "*", "/");
@@ -1225,9 +1323,9 @@ public class Octavia {
         }
         return false;
     }
-    
+
     private boolean isCorrectFormula(String formula) {
-        
+
         for (int i = 0; i < formula.length(); i++) {
             char ch = formula.charAt(i);
             if (ch == '(') {
@@ -1243,14 +1341,14 @@ public class Octavia {
                 return false;
             }
         }
-        
+
         return true;
     }
-    
+
     private boolean isNumeric(String str) {
         return str.matches("-?\\d+");
     }
-    
+
     private int findEndFormula(String formula) {
         for (int i = 0; i < formula.length(); i++) {
             char ch = formula.charAt(i);
@@ -1268,23 +1366,23 @@ public class Octavia {
         }
         return -1;
     }
-    
+
     public void copyFrom(Octavia sqlx) {
         List<FilterQuery> filters = sqlx.filters;
         for (FilterQuery filter : filters) {
             this.filters.add(new FilterQuery(filter));
         }
-        
+
         List<ItemOrderBy> itemsOrderBy = sqlx.itemsOrderBy;
         for (ItemOrderBy itemOrderBy : itemsOrderBy) {
             this.itemsOrderBy.add(itemOrderBy);
         }
-        
+
         Map<String, TableQuery> mapQueryTables = sqlx.mapQueryTables;
         for (Map.Entry<String, TableQuery> entry : mapQueryTables.entrySet()) {
             this.mapQueryTables.put(entry.getKey(), entry.getValue());
         }
-        
+
         this.selects = sqlx.selects;
         this.groupBys = sqlx.groupBys;
         this.existsStatus = sqlx.existsStatus;
@@ -1307,5 +1405,5 @@ public class Octavia {
         this.isClauseExistsOpen = sqlx.isClauseExistsOpen;
         this.isClauseInQueryOpen = sqlx.isClauseInQueryOpen;
     }
-    
+
 }
