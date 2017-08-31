@@ -1,6 +1,7 @@
 package pe.albatross.octavia.dynatable;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class DynatableFilter {
@@ -10,9 +11,11 @@ public class DynatableFilter {
     private Integer offset;
     private Integer total;
     private Integer filtered;
+    private Map sorts;
     private Map<String, Object> queries;
 
     public DynatableFilter() {
+        sorts = new LinkedHashMap();
     }
 
     @JsonIgnore
@@ -73,6 +76,14 @@ public class DynatableFilter {
 
     public void setFiltered(Integer filtered) {
         this.filtered = filtered;
+    }
+
+    public Map getSorts() {
+        return sorts;
+    }
+
+    public void setSorts(Map sorts) {
+        this.sorts = sorts;
     }
 
 }
