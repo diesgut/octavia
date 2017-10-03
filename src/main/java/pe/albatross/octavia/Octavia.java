@@ -136,12 +136,11 @@ public class Octavia {
 
             FilterQuery fq = new FilterQuery(alias, attribute, ObjectHelper.getParentTree(val, field));
             fq.setIndex(parametersCount++);
-            
+
             sets.add(fq);
-            
-            
+
         }
-        
+
         this.filter("id", val);
         return this;
     }
@@ -321,6 +320,8 @@ public class Octavia {
         Preconditions.isNotBlank(column, "La columna del filter es incorrecta");
         Preconditions.isNotBlank(comparision, "El signo de comparación del filter es incorrecto");
         column = column.trim();
+
+        value = (value instanceof Enum) ? ((Enum) value).name() : value;
 
         String[] parts = column.split("\\.");
         Field fieldAttr = getAttribute(column);
@@ -1142,7 +1143,7 @@ public class Octavia {
         }
         selects = selects.replaceAll(separator, ",");
         if (clazzInto != null) {
-            sql.append("new ").append(clazzInto.getSimpleName()).append(" (").append(enterInto);
+            sql.append("new ").append(clazzInto.getName()).append(" (").append(enterInto);
         }
         if (count) {
             sql.append("count(");
