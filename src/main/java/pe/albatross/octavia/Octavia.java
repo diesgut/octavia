@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 import org.hibernate.Session;
 import org.hibernate.Query;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import pe.albatross.octavia.exceptions.OctaviaException;
 import static pe.albatross.octavia.helpers.FilterQuery.FilterTypeEnum.*;
 import pe.albatross.octavia.helpers.ItemOrderBy.OrderTypeEnum;
@@ -58,6 +60,8 @@ public class Octavia {
     private final String separator = "::::::::";
     private final String enter = " \n";
     private final String enterInto = " \n\t";
+
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     public static List<Class> TYPICAL_CLASSES = Arrays.asList(
             String.class, Integer.class, Long.class, BigDecimal.class, Float.class, Double.class, Timestamp.class, Date.class
@@ -1072,7 +1076,14 @@ public class Octavia {
         }
 
         if (prefix.equals("")) {
-            System.out.println(sql.toString());
+            String[] strings = sql.toString().split(enter);
+            for (int i = 0; i < strings.length; i++) {
+                if (i == 0) {
+                    logger.debug("> " + strings[i]);
+                } else {
+                    logger.debug("  " + strings[i]);
+                }
+            }
         }
 
         return sql.toString();
