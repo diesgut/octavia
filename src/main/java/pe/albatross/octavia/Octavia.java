@@ -911,6 +911,13 @@ public class Octavia {
             switch (filter.getFilterType()) {
                 case GENERIC_OPERATOR:
                 case COMPLEX:
+                    if (filter.getComparision() == ComparisonOperatorEnum.IN
+                            || filter.getComparision() == ComparisonOperatorEnum.NOT_IN) {
+                        setListValuesComplex(filter);
+                    } else {
+                        setValue(filter);
+                    }
+                    break;
                 case COMPLEX_LIKE:
                 case LIKE:
                 case NOT_LIKE:
@@ -941,6 +948,53 @@ public class Octavia {
                     break;
             }
         }
+    }
+
+    private void setListValuesComplex(FilterQuery filter) {
+        List values = getListValuesComplex(filter.getValue());
+        String param = "PARAM_" + String.format("%06d", filter.getIndex());
+        query.setParameterList(param, values);
+    }
+
+    private List getListValuesComplex(Object value) {
+
+        if (value instanceof List) {
+            List values = (List) value;
+            if (values.isEmpty()) {
+                return null;
+            }
+            Class clazz = values.get(0).getClass();
+            if (TYPICAL_CLASSES.contains(clazz)) {
+                return values;
+            }
+            List<Long> ids = new ArrayList();
+            for (Object item : values) {
+                Long id = getIdObject(item);
+                ids.add(id);
+            }
+            return ids;
+
+        }
+
+        if (!(value instanceof Object[])) {
+            return null;
+        }
+
+        List values = new ArrayList();
+        if (value instanceof Object[]) {
+            Object[] items = (Object[]) value;
+            for (Object item : items) {
+                if (item instanceof Enum) {
+                    values.add(((Enum) item).name());
+                } else {
+                    values.add(item);
+                }
+            }
+            if (values.isEmpty()) {
+                return null;
+            }
+        }
+        return values;
     }
 
     private void setListValues(FilterQuery filter) {
