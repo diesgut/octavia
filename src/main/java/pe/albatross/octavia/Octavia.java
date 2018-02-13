@@ -908,6 +908,7 @@ public class Octavia {
 
     private void setValues(List<FilterQuery> filters) {
         for (FilterQuery filter : filters) {
+            logger.debug("filter: " + filter.getFilterType().name());
             switch (filter.getFilterType()) {
                 case GENERIC_OPERATOR:
                 case COMPLEX:
