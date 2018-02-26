@@ -968,6 +968,15 @@ public class Octavia {
             if (TYPICAL_CLASSES.contains(clazz)) {
                 return values;
             }
+            Object first = values.get(0);
+            if (first instanceof Enum) {
+                List items = new ArrayList();
+                for (Object item : values) {
+                    items.add(((Enum) item).name());
+                }
+                return items;
+            }
+
             List<Long> ids = new ArrayList();
             for (Object item : values) {
                 Long id = getIdObject(item);
