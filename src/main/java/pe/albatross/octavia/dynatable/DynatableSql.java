@@ -118,12 +118,16 @@ public class DynatableSql {
                         this.dataQuery.linkedBy(columnTop, comparision, columnBottom);
                     }
 
-                    if (!this.subqueryFields.isEmpty()) {
+                    if (!this.subqueryFields.isEmpty() || !this.subqueryComplexs.isEmpty()) {
                         subqueryOne.beginBlock();
                         subqueryTwo.beginBlock();
                         for (String field : this.subqueryFields) {
                             subqueryOne.like(field, part);
                             subqueryTwo.like(field, part);
+                        }
+                        for (String field : this.subqueryComplexs) {
+                            subqueryOne.likeComplex(field, part);
+                            subqueryTwo.likeComplex(field, part);
                         }
                         subqueryOne.endBlock();
                         subqueryTwo.endBlock();
@@ -165,7 +169,7 @@ public class DynatableSql {
     }
 
     public DynatableSql left(String... tables) {
-       return this.leftJoin(tables);
+        return this.leftJoin(tables);
     }
 
     public DynatableSql leftJoin(String... tables) {
