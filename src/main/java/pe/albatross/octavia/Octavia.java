@@ -1030,9 +1030,11 @@ public class Octavia {
         } else if (value instanceof Double) {
             query.setDouble(param, (Double) value);
         } else if (value instanceof Timestamp) {
-            query.setTimestamp(param, (Timestamp) value);
+            //query.setTimestamp(param, (Timestamp) value);
+            query.setParameter(param, value);
         } else if (value instanceof Date) {
-            query.setDate(param, (Date) value);
+            //query.setDate(param, (Date) value);
+            query.setParameter(param, value);
         } else {
             query.setLong(param, getIdObject(value));
         }
