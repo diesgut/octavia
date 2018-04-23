@@ -311,19 +311,19 @@ public class DynatableSql {
     }
 
     public DynatableSql betweenIn(String column, Object valueMin, Object valueMax) {
-        filteredQuery.betweenIn(column, valueMin, valueMax);
-        dataQuery.betweenIn(column, valueMin, valueMax);
+        filteredQuery.between(column, valueMin, valueMax);
+        dataQuery.between(column, valueMin, valueMax);
         if (!isRelativeFilter) {
-            totalQuery.betweenIn(column, valueMin, valueMax);
+            totalQuery.between(column, valueMin, valueMax);
         }
         return this;
     }
 
     public DynatableSql betweenNotIn(String column, Object valueMin, Object valueMax) {
-        filteredQuery.betweenNotIn(column, valueMin, valueMax);
-        dataQuery.betweenNotIn(column, valueMin, valueMax);
+        filteredQuery.notBetween(column, valueMin, valueMax);
+        dataQuery.notBetween(column, valueMin, valueMax);
         if (!isRelativeFilter) {
-            totalQuery.betweenNotIn(column, valueMin, valueMax);
+            totalQuery.notBetween(column, valueMin, valueMax);
         }
         return this;
     }

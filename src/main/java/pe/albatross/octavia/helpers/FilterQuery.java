@@ -24,7 +24,7 @@ public class FilterQuery {
         IS_NULL, IS_NOT_NULL, OTHER_CONDITION, //       not params
         GENERIC_OPERATOR, //                            one param
         LIKE, NOT_LIKE, COMPLEX, COMPLEX_LIKE, //       one param
-        BETWEEN_IN, BETWEEN_NOT_IN, //                  two params
+        BETWEEN, BETWEEN_NOT, //                  two params
         IN_LIST, IN_LIST_DATES, //                      one list param
         NOT_IN_LIST, NOT_IN_LIST_DATES, //              one list param
         NOT_IN_QUERY, IN_QUERY, EXISTS, NOT_EXISTS, //  subquery

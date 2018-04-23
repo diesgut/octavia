@@ -171,8 +171,8 @@ public class Octavia {
                 case NOT_EXISTS:
                     filter.setIndex(filter.getIndex() + beginCount);
                     break;
-                case BETWEEN_IN:
-                case BETWEEN_NOT_IN:
+                case BETWEEN:
+                case BETWEEN_NOT:
                     filter.setIndex(filter.getIndex() + beginCount);
                     filter.setIndexTwo(filter.getIndexTwo() + beginCount);
                     break;
@@ -590,12 +590,12 @@ public class Octavia {
         return this;
     }
 
-    public Octavia betweenIn(String column, Object valueMin, Object valueMax) {
-        return setBetween(column, valueMin, valueMax, BETWEEN_IN);
+    public Octavia between(String column, Object valueMin, Object valueMax) {
+        return setBetween(column, valueMin, valueMax, BETWEEN);
     }
 
-    public Octavia betweenNotIn(String column, Object valueMin, Object valueMax) {
-        return setBetween(column, valueMin, valueMax, BETWEEN_NOT_IN);
+    public Octavia notBetween(String column, Object valueMin, Object valueMax) {
+        return setBetween(column, valueMin, valueMax, BETWEEN_NOT);
     }
 
     private Octavia setBetween(String column, Object valueMin, Object valueMax, FilterQuery.FilterTypeEnum typeBetween) {
@@ -930,8 +930,8 @@ public class Octavia {
                 case NOT_IN_LIST_DATES:
                     setListValues(filter);
                     break;
-                case BETWEEN_IN:
-                case BETWEEN_NOT_IN:
+                case BETWEEN:
+                case BETWEEN_NOT:
                     setTwoValues(filter);
                     break;
                 case IN_QUERY:
@@ -1317,11 +1317,10 @@ public class Octavia {
                     sql.append(" (").append(enter);
                     sql.append(filter.getSubQuery().toString());
                     break;
-                case BETWEEN_IN:
-                case BETWEEN_NOT_IN:
+                case BETWEEN:
+                case BETWEEN_NOT:
+                    sql.append(filter.getFilterType() == BETWEEN_NOT ? " not" : "");
                     sql.append(" between");
-                    sql.append(filter.getFilterType() == BETWEEN_NOT_IN ? " not" : "");
-                    sql.append(" in");
                     sql.append(" :PARAM_").append(String.format("%06d", filter.getIndex()));
                     sql.append(" and :PARAM_").append(String.format("%06d", filter.getIndexTwo()));
                     break;
