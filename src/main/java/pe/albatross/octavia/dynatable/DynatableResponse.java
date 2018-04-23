@@ -5,6 +5,7 @@ public class DynatableResponse {
     private Integer total;
     private Integer filtered;
     private Object data;
+    private Object dataHeader;
 
     public Integer getTotal() {
         return total;
@@ -30,6 +31,12 @@ public class DynatableResponse {
         this.data = data;
     }
 
+    public Object getDataHeader() {
+        return data;
+    }
 
+    public void setDataHeader(Object data) {
+        this.data = data;
+    }
 
 }
